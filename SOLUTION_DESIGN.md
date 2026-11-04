@@ -69,14 +69,21 @@ To resolve ambiguities in the case study, ContextIQ is built upon seven foundati
 
 ## 3. System Architecture & Component Design
 
-ContextIQ is composed of six modular subsystems, creating a clear separation of concerns between knowledge ingestion, retrieval, safety verification, and answer presentation.
+ContextIQ is composed of eight modular subsystems, creating a clear separation of concerns between knowledge ingestion, retrieval, safety verification, answer presentation, and cloud-native API delivery.
 
 ```mermaid
 flowchart TD
+    subgraph API ["0. Cloud-Native API Layer"]
+        FastAPI["FastAPI REST Service\n• POST /api/v1/ask\n• POST /api/v1/ingest\n• GET /api/v1/evaluate\n• GET /health\n• Swagger UI at /docs"]
+        Docker["Docker + ECS\n• Containerized Deployment\n• Qdrant Sidecar"]
+        FastAPI --> Docker
+    end
+
     subgraph Ingestion ["1. Knowledge Ingestion & Indexing Subsystem"]
         RawDocs["Documentation Source\n(docs.json)"] --> Chunker["Semantic Boundary Parser\n• Splits on sentences/paragraphs\n• Preserves headings & titles"]
         Chunker --> DocStore["In-Memory Document Store"]
         Chunker --> BM25["BM25 Indexer\n• Title field boost (2.5x)\n• Inverted posting lists"]
+        Chunker --> Qdrant["Qdrant Vector Database\n• Cosine Similarity Index\n• Payload Pre-Filtering\n• :memory: or AWS Cluster"]
         Chunker --> VocabReg["Corpus Vocabulary & Entity Registry\n• Tracks all known technical nouns\n• Enables OOV entity detection"]
     end
 
@@ -87,10 +94,11 @@ flowchart TD
     subgraph RetrievalLayer ["3. Retrieval & Matching Subsystem"]
         Analyzer --> Scorer["Relevance Scorer\n• Evaluates BM25 with Title Weighting\n• Computes query-to-chunk alignment\n• Produces Top-K Candidate Passages"]
         BM25 --> Scorer
+        Qdrant --> Scorer
         DocStore --> Scorer
     end
 
-    subgraph Gatekeeper ["4. Confidence & Abstention Gate (The 'Bouncer')"]
+    subgraph Gatekeeper ["4. Confidence & Abstention Gate"]
         Analyzer --> Check1{"Check 1: OOV Entity Check\nDoes query mention an entity\nabsent from corpus vocabulary?\n(e.g., 'Salesforce')"}
         Check1 -- "Entity Absent" --> RejectPath["Trigger Rejection Path"]
         
@@ -111,6 +119,9 @@ flowchart TD
         Extractor --> DeliverResponse["Deliver Verified Answer to Admin"]
         Fallback --> DeliverResponse
     end
+
+    FastAPI --> UserQuery
+    DeliverResponse --> FastAPI
 ```
 
 ---
@@ -157,7 +168,24 @@ flowchart TD
 * **Role**: Turns rejected queries into actionable product insights.
 * **Key Mechanics**:
   * Logs rejected queries to a structured telemetry stream.
-  * Provides Elena’s technical writing team with a prioritized report of questions admins are asking that the documentation currently fails to answer.
+  * Provides Elena's technical writing team with a prioritized report of questions admins are asking that the documentation currently fails to answer.
+
+#### Component 7: Qdrant Vector Database Adapter
+* **Role**: Provides enterprise-grade vector similarity search with payload-indexed metadata filtering.
+* **Key Mechanics**:
+  * Supports :memory: mode for fast unit testing and CI/CD, and remote mode for AWS ECS / Qdrant Cloud production deployments.
+  * Generates normalized dense vectors from text tokens for cosine similarity search.
+  * Full payload indexing (doc_id, 	itle, 
+avigation_path, sentences) enables metadata-scoped queries.
+  * Graceful fallback: if qdrant-client is not installed, an in-memory vector engine provides identical functionality.
+
+#### Component 8: FastAPI REST Microservice
+* **Role**: Exposes ContextIQ as a cloud-native REST API for integration with web portals, support widgets, and CI/CD pipelines.
+* **Key Mechanics**:
+  * 6 endpoints: /health, /api/v1/ask, /api/v1/ingest, /api/v1/reload, /api/v1/evaluate, /api/v1/vector-search.
+  * CORS middleware for web portal widget embedding.
+  * Pydantic request validation with auto-generated Swagger UI (/docs) and ReDoc (/redoc).
+  * Docker containerization with Qdrant sidecar for AWS ECS/Fargate deployment.
 
 ---
 
@@ -206,7 +234,8 @@ sequenceDiagram
 | Considered Approach | Selected in v1? | Trade-Off Rationale |
 | :--- | :---: | :--- |
 | **Pure LLM Conversational Generation** | **No** | While conversational, LLMs introduce inherent hallucination risk and knowledge leakage on third-party platforms (like Salesforce). Extractive grounding guarantees 0% hallucination. |
-| **Heavy External Vector DB (e.g., Pinecone/Milvus)** | **No** | Introduces cloud network latency, cold-start delays, and running costs for a 6-article corpus. In-memory BM25 executes in $<5$ms with zero dependencies. |
+| **Qdrant Vector Database (Hybrid Ready)** | **Yes** | Qdrant adapter with in-memory fallback provides vector similarity search alongside BM25. Supports payload pre-filtering and scales to remote AWS clusters for production. |
+| **Heavy External-Only Vector DB (Pinecone/Milvus)** | **No** | Introduces cloud network latency, cold-start delays, and running costs for a 6-article corpus. In-memory BM25 executes in $<5$ms with zero dependencies. |
 | **Semantic BM25 with Title Boosting** | **Yes** | Delivers 100% deterministic accuracy on benchmark questions, runs offline, installs instantly, and is mathematically auditable. |
 
 ### Known Limitations & Production Scaling (v2 Roadmap)

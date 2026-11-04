@@ -1,0 +1,52 @@
+# =============================================================================
+# ContextIQ — Docker Compose (AWS ECS Ready)
+# =============================================================================
+# Two-service architecture:
+#   1. contextiq-api  — FastAPI REST microservice (port 8000)
+#   2. qdrant         — Qdrant Vector Database (ports 6333/6334)
+#
+# Usage:
+#   docker compose up --build          # Start both services
+#   docker compose up -d               # Detached mode
+#   docker compose down                # Stop and remove containers
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # ContextIQ API — FastAPI + Uvicorn
+  # ---------------------------------------------------------------------------
+  contextiq-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: contextiq-api
+    ports:
+      - "8000:8000"
+    environment:
+      - QDRANT_URL=http://qdrant:6333
+    depends_on:
+      qdrant:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ---------------------------------------------------------------------------
+  # Qdrant — Vector Database
+  # ---------------------------------------------------------------------------
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: contextiq-qdrant
+    ports:
+      - "6333:6333"   # HTTP REST API
+      - "6334:6334"   # gRPC API
+    volumes:
+      - qdrant_data:/qdrant/storage
+    restart: unless-stopped
+
+volumes:
+  qdrant_data:
+    driver: local
