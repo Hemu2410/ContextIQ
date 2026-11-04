@@ -224,6 +224,9 @@ sequenceDiagram
 4. **Role-Based Access Control (RBAC) & Plan Filtering**:
    * *Limitation*: Enterprise features (like SAML SSO) are shown even if the inquiring admin is on a Starter plan.
    * *v2 Solution*: Pass the admin's plan tier and role as metadata filters during the retrieval step.
+5. **Pluggable Multi-Format Ingestion (PDF, DOCX, Markdown, CMS)**:
+   * *Limitation*: v1 is focused on structured JSON and text articles. Real enterprise documentation frequently arrives as PDF manuals, Word SOPs, and Markdown wikis.
+   * *v2 Solution*: Implement an abstract `BaseDocumentLoader` interface with format-specific adapters (`PDFLoader`, `DocxLoader`, `MarkdownLoader`, `ZendeskAPI`). All loaders map into our standard `{doc_id, title, content, metadata}` contract, allowing admins to upload PDFs or sync Zendesk help centers without modifying retrieval or indexing logic.
 
 ---
 
