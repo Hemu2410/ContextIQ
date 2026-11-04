@@ -18,6 +18,7 @@ from .chunker import HierarchicalChunker, load_documents_from_json
 from .index import BM25Index
 from .threshold import AdaptiveConfidenceEvaluator, ConfidenceEvaluation
 from .extractor import GroundedExtractor, ExtractedAnswer
+from .vector_store import QdrantVectorStore, VectorSearchResult
 from .graph import ContextIQStateGraph
 from .engine import ContextIQEngine
 
@@ -34,6 +35,8 @@ __all__ = [
     "HierarchicalChunker",
     "load_documents_from_json",
     "BM25Index",
+    "QdrantVectorStore",
+    "VectorSearchResult",
     "AdaptiveConfidenceEvaluator",
     "ConfidenceEvaluation",
     "GroundedExtractor",

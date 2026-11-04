@@ -12,15 +12,21 @@ from .chunker import HierarchicalChunker, load_documents_from_json
 from .index import BM25Index
 from .threshold import AdaptiveConfidenceEvaluator
 from .extractor import GroundedExtractor
+from .vector_store import QdrantVectorStore, VectorSearchResult
 from .graph import ContextIQStateGraph
 
 
 class ContextIQEngine:
-    """Production documentation Q&A engine."""
+    """Production documentation Q&A engine with Qdrant vector database integration."""
 
-    def __init__(self, docs_path: Optional[str] = None):
+    def __init__(self, docs_path: Optional[str] = None, qdrant_url: Optional[str] = None):
         self.chunker = HierarchicalChunker()
         self.index = BM25Index(title_weight=2.5)
+        self.vector_store = QdrantVectorStore(
+            collection_name="solstice_docs",
+            in_memory=(qdrant_url is None),
+            url=qdrant_url,
+        )
         self.evaluator = AdaptiveConfidenceEvaluator(self.index)
         self.extractor = GroundedExtractor()
         self.graph = ContextIQStateGraph(self.index, self.evaluator, self.extractor)
@@ -39,6 +45,7 @@ class ContextIQEngine:
         self.documents = load_documents_from_json(docs_path)
         self.chunks = self.chunker.chunk_all(self.documents)
         self.index.build(self.chunks)
+        self.vector_store.index_chunks(self.chunks)
 
         # Refresh evaluator and graph bindings with updated vocabulary
         self.evaluator = AdaptiveConfidenceEvaluator(self.index)
@@ -55,6 +62,7 @@ class ContextIQEngine:
         # Re-chunk and re-index
         self.chunks = self.chunker.chunk_all(self.documents)
         self.index.build(self.chunks)
+        self.vector_store.index_chunks(self.chunks)
 
         self.evaluator = AdaptiveConfidenceEvaluator(self.index)
         self.graph = ContextIQStateGraph(self.index, self.evaluator, self.extractor)
@@ -65,11 +73,16 @@ class ContextIQEngine:
         """Processes an administrative question through the state graph."""
         return self.graph.run(question)
 
+    def vector_search(self, query: str, top_k: int = 3, doc_id_filter: Optional[str] = None) -> List[VectorSearchResult]:
+        """Direct vector similarity search against Qdrant collection."""
+        return self.vector_store.search(query, top_k=top_k, doc_id_filter=doc_id_filter)
+
     def get_stats(self) -> Dict[str, Any]:
-        """Returns runtime statistics of the active index."""
+        """Returns runtime statistics of the active index and Qdrant store."""
         return {
             "document_count": len(self.documents),
             "chunk_count": len(self.chunks),
             "vocabulary_size": len(self.index.corpus_raw_vocab),
             "avg_chunk_length": round(self.index.avg_doc_len, 2),
+            "vector_database": self.vector_store.get_collection_info(),
         }

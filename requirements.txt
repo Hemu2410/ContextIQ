@@ -1,7 +1,8 @@
 # ContextIQ Dependencies
 # Core Engine: 100% native Python 3.10+ standard library (zero external dependencies required)
 
-# Optional ecosystem dependencies for LangGraph orchestration and typing
+# Vector Database & Ecosystem Dependencies
+qdrant-client>=1.9.0
 langgraph>=0.2.0
 langchain-core>=0.3.0
 pydantic>=2.0.0

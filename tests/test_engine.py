@@ -92,6 +92,13 @@ class TestContextIQ(unittest.TestCase):
         self.assertEqual(resp.status, "REFUSED")
         self.assertIsNone(resp.citation)
 
+    def test_qdrant_vector_search(self):
+        # Verify Qdrant vector store indexing and retrieval
+        results = self.engine.vector_search("password reset link", top_k=1)
+        self.assertTrue(len(results) > 0)
+        self.assertEqual(results[0].chunk.doc_id, "D-01")
+        self.assertIn("password", results[0].payload["title"].lower())
+
     def test_intent_classification(self):
         evaluator = self.engine.evaluator
         q_quant = evaluator.classify_intent("How long do I have before link expires?")
