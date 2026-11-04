@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: contextiq-api
+    runtime: docker
+    plan: free
+    region: oregon
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 8000
