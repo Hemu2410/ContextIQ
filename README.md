@@ -1,17 +1,31 @@
 # ContextIQ — Documentation Q&A Assistant
 **Forward Deployed Engineer (FDE) Case Study Submission for Solstice Learning**  
-*Author: Engineering Candidate | Tech Stack: Python 3.12, FastAPI, Qdrant Vector DB, LangGraph State Architecture, Okapi BM25*
+*Author: Hemakiran Rachamallu | Tech Stack: Python 3.11+, FastAPI, Qdrant Vector DB, LangGraph State Architecture, Okapi BM25*
 
 ---
 
 ## 1. What Was Built
 **ContextIQ** is an enterprise-grade, high-precision documentation Q&A assistant built for Elena Torres, Head of Support at Solstice Learning. It enables corporate platform administrators to ask plain-English operational questions (password resets, billing cycles, CSV export row limits, SSO) and receive verified answers with 3-tier citations.
 
+### 🌐 Live Cloud Deployment (Production Ready):
+ContextIQ is live in production with a public HTTPS endpoint and interactive documentation:
+- **Interactive API Documentation (Swagger UI)**: [https://contextiq-7r4v.onrender.com/docs](https://contextiq-7r4v.onrender.com/docs)
+- **Live Healthcheck & Vector DB Stats**: [https://contextiq-7r4v.onrender.com/health](https://contextiq-7r4v.onrender.com/health)
+- **Live Automated Benchmark Evaluation**: [https://contextiq-7r4v.onrender.com/api/v1/evaluate](https://contextiq-7r4v.onrender.com/api/v1/evaluate)
+- **Production Base URL**: `https://contextiq-7r4v.onrender.com`
+
+**Live cURL Sample:**
+```bash
+curl -X POST https://contextiq-7r4v.onrender.com/api/v1/ask \
+  -H "Content-Type: application/json" \
+  -d '{"question": "How do I reset my password?"}'
+```
+
 ### Primary Safety Mandate (Zero Hallucinations):
 Elena's core requirement is strictly enforced: *"If the docs genuinely don't cover something, I'd much rather it say 'I don't have an answer for that' than make something up."* ContextIQ achieves **100% precision on benchmark questions with 0.0% hallucination rate** using a multi-signal rejection boundary (Out-of-Vocabulary entity pre-filtering, dynamic risk-calibrated thresholds, and quantitative fact corroboration).
 
 ### Cloud-Native Architecture:
-ContextIQ ships as both a CLI tool and a **FastAPI REST microservice** backed by a **Qdrant vector database**, containerized with Docker for AWS ECS deployment.
+ContextIQ ships as both an interactive CLI tool and a **FastAPI REST microservice** backed by a **Qdrant vector database**, containerized with a production multi-stage Dockerfile and deployed to the cloud.
 
 ---
 
