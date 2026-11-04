@@ -62,11 +62,15 @@ class ContextIQStateGraph:
         evaluator: AdaptiveConfidenceEvaluator,
         extractor: GroundedExtractor,
         session_manager: Optional[SessionManager] = None,
+        vector_store: Optional[Any] = None,
+        reranker: Optional[Any] = None,
     ):
         self.index = index
         self.evaluator = evaluator
         self.extractor = extractor
         self.session_manager = session_manager or SessionManager()
+        self.vector_store = vector_store
+        self.reranker = reranker
 
     # ------------------------------------------------------------------
     # Node 1 – Query analysis & intent classification
@@ -92,14 +96,27 @@ class ContextIQStateGraph:
     # ------------------------------------------------------------------
 
     def node_retrieve(self, state: AssistantState) -> AssistantState:
-        """Retrieves top matching candidates from the BM25 index."""
+        """Retrieves and reranks top matching candidates using hybrid BM25 + Qdrant semantic search."""
         if not state["query_valid"]:
             state["top_score"] = 0.0
             state["top_chunk"] = None
             state["search_results"] = []
             return state
 
-        results = self.index.search(state["question"], top_k=5)
+        bm25_results = self.index.search(state["question"], top_k=5)
+
+        if self.vector_store and self.reranker:
+            vector_results = self.vector_store.search(state["question"], top_k=5)
+            results = self.reranker.rerank(
+                state["question"],
+                bm25_results,
+                vector_results,
+                query_analysis=state.get("query_analysis"),
+                top_k=5,
+            )
+        else:
+            results = bm25_results
+
         state["search_results"] = results
         if results:
             score, chunk, meta = results[0]

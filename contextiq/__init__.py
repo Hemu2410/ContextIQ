@@ -19,6 +19,7 @@ from .index import BM25Index
 from .threshold import AdaptiveConfidenceEvaluator, ConfidenceEvaluation
 from .extractor import GroundedExtractor, ExtractedAnswer
 from .vector_store import QdrantVectorStore, VectorSearchResult
+from .reranker import SemanticReranker
 from .graph import ContextIQStateGraph
 from .engine import ContextIQEngine
 
@@ -37,6 +38,7 @@ __all__ = [
     "BM25Index",
     "QdrantVectorStore",
     "VectorSearchResult",
+    "SemanticReranker",
     "AdaptiveConfidenceEvaluator",
     "ConfidenceEvaluation",
     "GroundedExtractor",

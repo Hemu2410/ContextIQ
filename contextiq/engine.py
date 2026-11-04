@@ -13,6 +13,7 @@ from .index import BM25Index
 from .threshold import AdaptiveConfidenceEvaluator
 from .extractor import GroundedExtractor
 from .vector_store import QdrantVectorStore, VectorSearchResult
+from .reranker import SemanticReranker
 from .graph import ContextIQStateGraph
 from .session import SessionManager
 
@@ -28,11 +29,17 @@ class ContextIQEngine:
             in_memory=(qdrant_url is None),
             url=qdrant_url,
         )
+        self.reranker = SemanticReranker()
         self.evaluator = AdaptiveConfidenceEvaluator(self.index)
         self.extractor = GroundedExtractor()
         self.session_manager = SessionManager()
         self.graph = ContextIQStateGraph(
-            self.index, self.evaluator, self.extractor, session_manager=self.session_manager
+            self.index,
+            self.evaluator,
+            self.extractor,
+            session_manager=self.session_manager,
+            vector_store=self.vector_store,
+            reranker=self.reranker,
         )
 
         self.documents: List[Document] = []
@@ -54,7 +61,12 @@ class ContextIQEngine:
         # Refresh evaluator and graph bindings with updated vocabulary
         self.evaluator = AdaptiveConfidenceEvaluator(self.index)
         self.graph = ContextIQStateGraph(
-            self.index, self.evaluator, self.extractor, session_manager=self.session_manager
+            self.index,
+            self.evaluator,
+            self.extractor,
+            session_manager=self.session_manager,
+            vector_store=self.vector_store,
+            reranker=self.reranker,
         )
 
         return len(self.chunks)
@@ -72,7 +84,12 @@ class ContextIQEngine:
 
         self.evaluator = AdaptiveConfidenceEvaluator(self.index)
         self.graph = ContextIQStateGraph(
-            self.index, self.evaluator, self.extractor, session_manager=self.session_manager
+            self.index,
+            self.evaluator,
+            self.extractor,
+            session_manager=self.session_manager,
+            vector_store=self.vector_store,
+            reranker=self.reranker,
         )
 
         return len(self.chunks)

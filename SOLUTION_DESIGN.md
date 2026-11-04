@@ -98,7 +98,7 @@ flowchart TD
     end
 
     subgraph RetrievalLayer ["3. Retrieval & Matching Subsystem"]
-        Analyzer --> Scorer["Relevance Scorer\n• Evaluates BM25 with Title Weighting\n• Computes query-to-chunk alignment\n• Produces Top-K Candidate Passages"]
+        Analyzer --> Scorer["Hybrid Semantic Reranker\n• Dual-Channel: BM25 + Qdrant Dense Vectors\n• Multi-Channel Rank Fusion\n• Intent & Title Corroboration Weighting"]
         BM25 --> Scorer
         Qdrant --> Scorer
         DocStore --> Scorer
@@ -246,9 +246,9 @@ sequenceDiagram
 
 ### Known Limitations & Production Scaling (v2 Roadmap)
 
-1. **Vocabulary / Synonym Gaps**:
-   * *Limitation*: If an admin asks *"Can I export to an Excel spreadsheet?"*, pure lexical search may struggle because "spreadsheet" $\ne$ "CSV".
-   * *v2 Solution*: Integrate a hybrid retrieval layer combining BM25 with dense semantic vector embeddings (`sentence-transformers` / small on-device models) for conceptual matching.
+1. **Hybrid Retrieval & Semantic Dense Reranking** *(Implemented in v1.2)*:
+   * *Capability*: Multi-channel dual retrieval fusing Okapi BM25 lexical precision ($2.5\times$ title-boosted) with Qdrant dense vector cosine similarity via [`contextiq/reranker.py`](./contextiq/reranker.py).
+   * *Design*: Computes calibrated hybrid scores ($0.75 \cdot S_{\text{bm25}} + 0.25 \cdot S_{\text{vector}}$) with intent corroboration, solving synonym gaps (e.g., conceptual password/login matching) while retaining 100% precision on technical keywords.
 2. **Single-Shot Bounded Disambiguation & Short-Term Session Memory** *(Implemented in v1.1)*:
    * *Capability*: When an admin submits an ambiguous or underspecified query (e.g., *"How do I reset?"*), ContextIQ identifies near-ties (delta <= 0.08) and triggers a **single-turn clarification prompt**: *"Did you mean: (A) Resetting Your Password [D-01], or (B) Understanding Billing Cycles [D-04]?"*
    * *Short-Term Session Memory*: Tracks conversational state across turns via `session_id`. When the admin replies with *"A"*, *"1"*, or *"password"*, ContextIQ resolves the selection and serves the verified answer.

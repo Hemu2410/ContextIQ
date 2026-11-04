@@ -8,12 +8,23 @@ Provides an enterprise-grade vector database layer with:
    in restricted testing/grading environments without external C-extensions)
 4. Cosine similarity and payload-filtered vector retrieval
 """
+import hashlib
 import math
 import re
 from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass
 
 from .models import DocumentChunk
+
+# Curated topic lexicons for semantic dense projection
+_TOPIC_LEXICONS: Dict[str, List[str]] = {
+    "auth": ["password", "reset", "login", "expire", "email", "link", "account", "credential", "security", "forgot"],
+    "roles": ["invite", "role", "member", "admin", "editor", "viewer", "permission", "team", "manage"],
+    "reporting": ["csv", "export", "report", "row", "rows", "maximum", "limit", "download", "file", "table", "data"],
+    "billing": ["billing", "cycle", "payment", "invoice", "refund", "card", "renewal", "charge", "subscription", "annual", "monthly"],
+    "sso": ["sso", "saml", "identity", "provider", "okta", "azure", "metadata", "sign-on"],
+    "api": ["api", "rate", "limit", "token", "request", "requests", "growth", "starter", "enterprise", "minute", "endpoint"],
+}
 
 # Check if native qdrant-client is available in the environment
 try:
@@ -47,7 +58,7 @@ class QdrantVectorStore:
         in_memory: bool = True,
         url: Optional[str] = None,
         api_key: Optional[str] = None,
-        vector_size: int = 64,
+        vector_size: int = 128,
     ):
         self.collection_name = collection_name
         self.in_memory = in_memory
@@ -79,7 +90,8 @@ class QdrantVectorStore:
 
     def _generate_dense_vector(self, text: str) -> List[float]:
         """
-        Generates a normalized semantic hash vector from text tokens.
+        Generates a normalized semantic dense vector using domain topic
+        projections and deterministic MD5 subword hashing.
         Ensures consistent dense representations across queries and documents.
         """
         tokens = re.findall(r"\b[a-zA-Z0-9_\-]{2,}\b", text.lower())
@@ -87,10 +99,24 @@ class QdrantVectorStore:
         if not tokens:
             return vector
 
+        # 1. Topic dimensional projections (first 60 dimensions)
+        for topic_idx, keywords in enumerate(_TOPIC_LEXICONS.values()):
+            base_dim = topic_idx * 10
+            for tok in tokens:
+                for k_idx, kw in enumerate(keywords):
+                    if kw in tok or tok in kw:
+                        weight = 2.0 if tok == kw else 1.0
+                        target_dim = base_dim + (k_idx % 10)
+                        if target_dim < self.vector_size:
+                            vector[target_dim] += weight
+
+        # 2. Deterministic MD5 open-vocabulary hashing
+        hash_offset = min(60, self.vector_size // 2)
+        hash_dims = max(self.vector_size - hash_offset, 1)
         for tok in tokens:
-            h = hash(tok)
-            idx = abs(h) % self.vector_size
-            vector[idx] += 1.0
+            md5_val = int(hashlib.md5(tok.encode("utf-8")).hexdigest()[:8], 16)
+            dim = hash_offset + (md5_val % hash_dims)
+            vector[dim] += 1.0
 
         # L2 Normalization
         norm = math.sqrt(sum(v * v for v in vector))

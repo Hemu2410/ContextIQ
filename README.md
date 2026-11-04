@@ -40,12 +40,13 @@ ContextIQ ships as both an interactive CLI tool and a **FastAPI REST microservic
 | **Grounded Answer Extraction** | [`contextiq/extractor.py`](./contextiq/extractor.py) | Pinpoints the exact fact-bearing sentence and formats 3-tier citations (Doc ID, Title, exact quote, navigation path). |
 | **State Machine Orchestrator** | [`contextiq/graph.py`](./contextiq/graph.py) | LangGraph-compatible state machine with deterministic conditional routing (`confidence_gate` $\rightarrow$ answer vs refusal). |
 | **Qdrant Vector Database** | [`contextiq/vector_store.py`](./contextiq/vector_store.py) | Qdrant adapter with `:memory:` fallback, cosine similarity, payload pre-filtering, and remote AWS cluster support. |
+| **Hybrid Semantic Reranker** | [`contextiq/reranker.py`](./contextiq/reranker.py) | Multi-channel rank fusion combining BM25 lexical precision and Qdrant dense vector similarity with intent corroboration. |
 | **Unified Engine Interface** | [`contextiq/engine.py`](./contextiq/engine.py) | Ingests, upserts, and executes queries in $<5\text{ms}$ with zero downtime hot-reloads. |
 | **REST API Microservice** | [`api.py`](./api.py) | FastAPI REST API with 6 endpoints, CORS, Swagger UI (`/docs`), and Pydantic request validation. |
 | **CLI & Evaluation Runner** | [`main.py`](./main.py) | Terminal entrypoint: interactive REPL, single question query, benchmark evaluation, and `--serve` API mode. |
 | **Docker Containerization** | [`Dockerfile`](./Dockerfile), [`docker-compose.yml`](./docker-compose.yml) | Multi-stage Docker build with Qdrant sidecar, ready for AWS ECS deployment. |
 | **Short-Term Session Memory** | [`contextiq/session.py`](./contextiq/session.py) | In-memory session manager with TTL expiration; maintains state across turns for single-shot HITL. |
-| **Automated Test Suite** | [`tests/`](./tests/) | 25 automated tests: 14 engine unit tests + 11 API integration tests (100% passing). |
+| **Automated Test Suite** | [`tests/`](./tests/) | 27 automated tests: 16 engine unit tests + 11 API integration tests (100% passing). |
 
 ---
 

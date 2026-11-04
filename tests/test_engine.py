@@ -143,6 +143,27 @@ class TestContextIQ(unittest.TestCase):
         self.assertIsNotNone(resp.citation)
         self.assertEqual(resp.citation.doc_id, "D-01")
 
+    def test_hybrid_reranker_multichannel(self):
+        # Verify SemanticReranker fuses lexical and Qdrant semantic channels
+        bm25_res = self.engine.index.search("How do I reset my password?", top_k=3)
+        vec_res = self.engine.vector_store.search("How do I reset my password?", top_k=3)
+        reranked = self.engine.reranker.rerank(
+            "How do I reset my password?", bm25_res, vec_res, top_k=3
+        )
+        self.assertTrue(len(reranked) > 0)
+        top_score, top_chunk, top_meta = reranked[0]
+        self.assertEqual(top_chunk.doc_id, "D-01")
+        self.assertTrue(top_meta.get("reranked"))
+        self.assertEqual(top_meta.get("channel_count"), 2)
+        self.assertGreater(top_meta.get("bm25_score"), 0.0)
+        self.assertGreater(top_meta.get("vector_score"), 0.0)
+
+    def test_semantic_search_top_match(self):
+        # Verify dense semantic vector search accurately retrieves conceptual match
+        vec_res = self.engine.vector_store.search("password reset link validity", top_k=1)
+        self.assertTrue(len(vec_res) > 0)
+        self.assertEqual(vec_res[0].chunk.doc_id, "D-01")
+
 
 if __name__ == "__main__":
     unittest.main()
