@@ -15,6 +15,7 @@ from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass
 
 from .models import DocumentChunk
+from .index import tokenize
 
 # Curated topic lexicons for semantic dense projection
 _TOPIC_LEXICONS: Dict[str, List[str]] = {
@@ -88,35 +89,29 @@ class QdrantVectorStore:
                 vectors_config=VectorParams(size=self.vector_size, distance=Distance.COSINE),
             )
 
-    def _generate_dense_vector(self, text: str) -> List[float]:
+    def _generate_dense_vector(self, text: str, title: str = "") -> List[float]:
         """
-        Generates a normalized semantic dense vector using domain topic
-        projections and deterministic MD5 subword hashing.
+        Generates a normalized semantic dense vector using stemmed tokenization,
+        stopword filtering, title boosting (2.5x), and deterministic MD5 subword hashing.
         Ensures consistent dense representations across queries and documents.
         """
-        tokens = re.findall(r"\b[a-zA-Z0-9_\-]{2,}\b", text.lower())
+        clean_text = text.replace('"', ' ').replace("'", " ")
+        tokens = tokenize(clean_text, remove_stopwords=True, stem=True)
+        title_tokens = tokenize(title, remove_stopwords=True, stem=True) if title else []
+
         vector = [0.0] * self.vector_size
-        if not tokens:
+        if not tokens and not title_tokens:
             return vector
 
-        # 1. Topic dimensional projections (first 60 dimensions)
-        for topic_idx, keywords in enumerate(_TOPIC_LEXICONS.values()):
-            base_dim = topic_idx * 10
-            for tok in tokens:
-                for k_idx, kw in enumerate(keywords):
-                    if kw in tok or tok in kw:
-                        weight = 2.0 if tok == kw else 1.0
-                        target_dim = base_dim + (k_idx % 10)
-                        if target_dim < self.vector_size:
-                            vector[target_dim] += weight
+        # Title tokens weighted with 2.5x multiplier
+        for tok in title_tokens:
+            md5_val = int(hashlib.md5(tok.encode("utf-8")).hexdigest()[:8], 16)
+            vector[md5_val % self.vector_size] += 2.5
 
-        # 2. Deterministic MD5 open-vocabulary hashing
-        hash_offset = min(60, self.vector_size // 2)
-        hash_dims = max(self.vector_size - hash_offset, 1)
+        # Body tokens
         for tok in tokens:
             md5_val = int(hashlib.md5(tok.encode("utf-8")).hexdigest()[:8], 16)
-            dim = hash_offset + (md5_val % hash_dims)
-            vector[dim] += 1.0
+            vector[md5_val % self.vector_size] += 1.0
 
         # L2 Normalization
         norm = math.sqrt(sum(v * v for v in vector))
@@ -131,7 +126,7 @@ class QdrantVectorStore:
 
         for idx, chunk in enumerate(chunks):
             self.chunks_by_id[chunk.chunk_id] = chunk
-            vector = self._generate_dense_vector(f"{chunk.title} {chunk.text}")
+            vector = self._generate_dense_vector(chunk.text, title=chunk.title)
             payload = {
                 "chunk_id": chunk.chunk_id,
                 "doc_id": chunk.doc_id,
