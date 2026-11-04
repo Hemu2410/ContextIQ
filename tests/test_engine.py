@@ -11,8 +11,8 @@ from contextiq.models import Document
 class TestContextIQ(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        docs_path = os.path.join("starter_kit", "data", "docs.json")
-        cls.engine = ContextIQEngine(docs_path)
+        cls.docs_path = os.path.join("starter_kit", "data", "docs.json")
+        cls.engine = ContextIQEngine(cls.docs_path)
 
     def test_q1_password_reset(self):
         resp = self.engine.ask("How do I reset my password?")
@@ -81,6 +81,27 @@ class TestContextIQ(unittest.TestCase):
         self.assertIsNotNone(resp_after.citation)
         self.assertEqual(resp_after.citation.doc_id, "D-07")
         self.assertIn("Zapier", resp_after.answer)
+
+        # 4. Clean up / restore original state for test isolation
+        self.engine.load_docs(self.docs_path)
+
+
+    def test_first_word_oov_entity(self):
+        # Even when the external entity is at position 0, it should be rejected
+        resp = self.engine.ask("Salesforce integration with Solstice is available?")
+        self.assertEqual(resp.status, "REFUSED")
+        self.assertIsNone(resp.citation)
+
+    def test_intent_classification(self):
+        evaluator = self.engine.evaluator
+        q_quant = evaluator.classify_intent("How long do I have before link expires?")
+        self.assertEqual(q_quant.intent.value, "QUANTITATIVE")
+
+        q_proc = evaluator.classify_intent("How do I reset my password?")
+        self.assertEqual(q_proc.intent.value, "PROCEDURAL")
+
+        q_info = evaluator.classify_intent("What is the billing cycle?")
+        self.assertEqual(q_info.intent.value, "INFORMATIONAL")
 
 
 if __name__ == "__main__":

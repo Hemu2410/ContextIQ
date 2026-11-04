@@ -2,9 +2,16 @@
 BM25 Search Index with Title Weighting and Corpus Vocabulary Registry.
 
 Implements Okapi BM25 scoring with:
-1. Title Field Boosting (2.5x weight)
+1. Title Field Boosting (2.5x multiplicative weight)
 2. Corpus Vocabulary & Entity Registry for Out-of-Vocabulary (OOV) Pre-Filtering
 3. Score Normalization for Calibrated Thresholding
+
+Stopword Asymmetry
+------------------
+Stopwords are intentionally kept during *indexing* (``remove_stopwords=False``)
+to preserve positional context and accurate document-length statistics, but they
+are *removed* during *querying* (``remove_stopwords=True``) so that common
+function words do not dilute query precision or inflate match counts.
 """
 from collections import Counter
 import math
@@ -35,25 +42,60 @@ STOPWORDS: Set[str] = {
 
 
 def simple_stem(token: str) -> str:
-    """Lightweight rule-based suffix normalization for inflections and plurals."""
+    """Lightweight rule-based suffix normalization for inflections and plurals.
+
+    Rules applied in order:
+    - ``ies`` → ``y`` (e.g. "berries" → "berry")
+    - ``ches/shes/xes/zes/ses`` → strip ``es`` (correct English -es plurals)
+    - ``s`` → strip, unless the word ends in ``ss``, ``us``, or ``is``
+    - ``ing`` → strip, with double-consonant collapsing ("running" → "run");
+      only if the remaining stem has ≥ 3 characters
+    - ``ed`` → strip, only if the remaining stem has ≥ 3 characters
+    """
     t = token.lower()
     if len(t) <= 3:
         return t
+
+    # ies → y  (e.g. "berries" → "berry")
     if t.endswith("ies") and len(t) > 4:
         return t[:-3] + "y"
-    if t.endswith("es") and len(t) > 3 and not t.endswith(("ses", "zes")):
+
+    # es — only strip for the standard English sibilant/affricate plurals
+    if t.endswith(("ches", "shes", "xes", "zes", "ses")) and len(t) > 4:
         return t[:-2]
-    if t.endswith("s") and not t.endswith("ss") and len(t) > 3:
+
+    # s — don't strip if word ends in "ss", "us", or "is"
+    if t.endswith("s") and not t.endswith(("ss", "us", "is")) and len(t) > 3:
         return t[:-1]
+
+    # ing — require remaining stem ≥ 3 chars; collapse doubled trailing consonant
     if t.endswith("ing") and len(t) > 5:
-        return t[:-3]
+        stem = t[:-3]
+        if len(stem) >= 3:
+            # Collapse doubled final consonant: "running" → "runn" → "run"
+            if len(stem) >= 2 and stem[-1] == stem[-2] and stem[-1].isalpha():
+                stem = stem[:-1]
+            return stem
+
+    # ed — require remaining stem ≥ 3 chars
     if t.endswith("ed") and len(t) > 4:
-        return t[:-2]
+        stem = t[:-2]
+        if len(stem) >= 3:
+            return stem
+
     return t
 
 
 def tokenize(text: str, remove_stopwords: bool = False, stem: bool = True) -> List[str]:
-    """Tokenizes text, strips punctuation, and optionally stems tokens."""
+    """Tokenizes text, strips punctuation, and optionally stems tokens.
+
+    Args:
+        text: Raw input text.
+        remove_stopwords: When *True*, common English stopwords are dropped.
+            This is typically enabled for **query** tokenization and disabled
+            for **indexing** — see the module-level docstring for rationale.
+        stem: When *True*, tokens are passed through :func:`simple_stem`.
+    """
     cleaned = re.sub(r"[^a-zA-Z0-9\s_\-]", " ", text)
     tokens = [t.lower() for t in cleaned.split() if t.strip()]
     if remove_stopwords:
@@ -66,7 +108,7 @@ def tokenize(text: str, remove_stopwords: bool = False, stem: bool = True) -> Li
 class BM25Index:
     """
     Okapi BM25 Index with:
-    - Title Field Weighting (boost for terms in the document title)
+    - Title Field Weighting (multiplicative boost for terms in the document title)
     - Vocabulary and Proper-Noun Registry for Out-of-Vocabulary (OOV) pre-filtering
     """
 
@@ -157,9 +199,11 @@ class BM25Index:
 
             for chunk_idx in postings:
                 tf = self.doc_term_freqs[chunk_idx].get(term, 0)
-                # Apply title boost multiplier if term appears in title
+                # Apply title boost as a MULTIPLICATIVE factor (2.5x) so that
+                # title-matching terms are weighted proportionally rather than
+                # receiving a flat additive bump.
                 if term in self.title_term_sets[chunk_idx]:
-                    tf = tf + (self.title_weight * 2.0)
+                    tf = int(max(tf * self.title_weight, self.title_weight))
 
                 doc_l = self.doc_len[chunk_idx]
                 denom = tf + self.k1 * (1.0 - self.b + self.b * (doc_l / (self.avg_doc_len or 1.0)))
@@ -168,8 +212,10 @@ class BM25Index:
                 scores[chunk_idx] += term_score
                 matched_terms_per_chunk[chunk_idx].append(term)
 
-        # Max theoretical score for query normalization
-        max_possible_score = sum(self.idf.get(term, 1.0) * (self.k1 + 1.0) for term in q_tokens)
+        # Max theoretical score for query normalization.
+        # Terms not present in the corpus IDF map contribute 0.0 (not 1.0) so
+        # that unknown terms do not artificially inflate the denominator.
+        max_possible_score = sum(self.idf.get(term, 0.0) * (self.k1 + 1.0) for term in q_tokens)
         max_possible_score = max(max_possible_score, 1.0)
 
         results = []
