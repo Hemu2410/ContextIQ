@@ -214,10 +214,14 @@ sequenceDiagram
 1. **Vocabulary / Synonym Gaps**:
    * *Limitation*: If an admin asks *"Can I export to an Excel spreadsheet?"*, pure lexical search may struggle because "spreadsheet" $\ne$ "CSV".
    * *v2 Solution*: Integrate a hybrid retrieval layer combining BM25 with dense semantic vector embeddings (`sentence-transformers` / small on-device models) for conceptual matching.
-2. **Multi-Hop Reasoning**:
+2. **Single-Shot Bounded Disambiguation (Query Clarification)**:
+   * *Limitation*: When an admin submits an ambiguous, multi-intent query (e.g., *"How do I reset?"*), both `D-01` (Password Reset) and `D-04` (Billing Payment Reset) score almost equally.
+   * *v2 Solution*: Trigger a **single-turn clarification prompt**: *"Are you referring to: (A) Resetting your account password, or (B) Updating your billing payment method?"*
+   * *Guardrail*: Strictly bounded to **maximum 1 clarification turn** to eliminate frustrating "20 questions" loops. If still ambiguous on the second turn, the system gracefully provides both doc links and offers support escalation.
+3. **Multi-Hop Reasoning**:
    * *Limitation*: Inquiries requiring facts combined across two separate articles (e.g., *"Can a Viewer export CSV reports?"* combining `D-02` role permissions with `D-03` export tools).
    * *v2 Solution*: Passage multi-hop linking where retrieved passages from both articles are cross-referenced before answering.
-3. **Role-Based Access Control (RBAC) & Plan Filtering**:
+4. **Role-Based Access Control (RBAC) & Plan Filtering**:
    * *Limitation*: Enterprise features (like SAML SSO) are shown even if the inquiring admin is on a Starter plan.
    * *v2 Solution*: Pass the admin's plan tier and role as metadata filters during the retrieval step.
 
