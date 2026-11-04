@@ -111,5 +111,38 @@ class TestContextIQ(unittest.TestCase):
         self.assertEqual(q_info.intent.value, "INFORMATIONAL")
 
 
+    def test_disambiguation_near_tie(self):
+        # Ambiguous query without distinguishing noun triggers DISAMBIGUATION
+        resp = self.engine.ask("How do I reset?")
+        self.assertEqual(resp.status, "DISAMBIGUATION")
+        self.assertIsNotNone(resp.session_id)
+        self.assertIsNotNone(resp.options)
+        self.assertEqual(len(resp.options), 2)
+        self.assertEqual(resp.options[0]["option"], "A")
+        self.assertEqual(resp.options[0]["doc_id"], "D-01")
+        self.assertEqual(resp.options[1]["option"], "B")
+        self.assertEqual(resp.options[1]["doc_id"], "D-04")
+
+    def test_disambiguation_follow_up_resolution(self):
+        # Turn 1: Ask ambiguous query and receive session_id
+        resp1 = self.engine.ask("How do I reset?")
+        self.assertEqual(resp1.status, "DISAMBIGUATION")
+        sid = resp1.session_id
+
+        # Turn 2: Follow up with "A" using the same session_id
+        resp2 = self.engine.ask("A", session_id=sid)
+        self.assertEqual(resp2.status, "ANSWERED")
+        self.assertIsNotNone(resp2.citation)
+        self.assertEqual(resp2.citation.doc_id, "D-01")
+        self.assertIn("password", resp2.answer.lower())
+
+    def test_unambiguous_query_skips_disambiguation(self):
+        # Specific query must directly answer without triggering disambiguation
+        resp = self.engine.ask("How do I reset my password?")
+        self.assertEqual(resp.status, "ANSWERED")
+        self.assertIsNotNone(resp.citation)
+        self.assertEqual(resp.citation.doc_id, "D-01")
+
+
 if __name__ == "__main__":
     unittest.main()

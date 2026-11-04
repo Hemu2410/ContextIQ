@@ -9,6 +9,7 @@ from typing import List, Optional, Dict, Any
 class Status(str, Enum):
     ANSWERED = "ANSWERED"
     REFUSED = "REFUSED"
+    DISAMBIGUATION = "DISAMBIGUATION"
 
 
 class ConfidenceTier(str, Enum):
@@ -90,6 +91,8 @@ class ContextIQResponse:
     effective_threshold: float
     rejection_reason: Optional[str] = None
     escalation_path: Optional[str] = None
+    session_id: Optional[str] = None
+    options: Optional[List[Dict[str, str]]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         def _convert(obj: Any) -> Any:

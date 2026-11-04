@@ -67,6 +67,7 @@ app.add_middleware(
 class AskRequest(BaseModel):
     """Submit an admin question to ContextIQ."""
     question: str = Field(..., min_length=1, examples=["How do I reset my password?"])
+    session_id: Optional[str] = Field(None, description="Optional conversational session ID for multi-turn disambiguation")
 
 
 class IngestRequest(BaseModel):
@@ -107,7 +108,7 @@ def ask_question(request: AskRequest) -> Dict[str, Any]:
     if not request.question.strip():
         raise HTTPException(status_code=400, detail="Question cannot be empty.")
 
-    response = engine.ask(request.question)
+    response = engine.ask(request.question, session_id=request.session_id)
     return response.to_dict()
 
 

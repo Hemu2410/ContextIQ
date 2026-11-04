@@ -14,6 +14,7 @@ from .threshold import AdaptiveConfidenceEvaluator
 from .extractor import GroundedExtractor
 from .vector_store import QdrantVectorStore, VectorSearchResult
 from .graph import ContextIQStateGraph
+from .session import SessionManager
 
 
 class ContextIQEngine:
@@ -29,7 +30,10 @@ class ContextIQEngine:
         )
         self.evaluator = AdaptiveConfidenceEvaluator(self.index)
         self.extractor = GroundedExtractor()
-        self.graph = ContextIQStateGraph(self.index, self.evaluator, self.extractor)
+        self.session_manager = SessionManager()
+        self.graph = ContextIQStateGraph(
+            self.index, self.evaluator, self.extractor, session_manager=self.session_manager
+        )
 
         self.documents: List[Document] = []
         self.chunks: List[DocumentChunk] = []
@@ -49,7 +53,9 @@ class ContextIQEngine:
 
         # Refresh evaluator and graph bindings with updated vocabulary
         self.evaluator = AdaptiveConfidenceEvaluator(self.index)
-        self.graph = ContextIQStateGraph(self.index, self.evaluator, self.extractor)
+        self.graph = ContextIQStateGraph(
+            self.index, self.evaluator, self.extractor, session_manager=self.session_manager
+        )
 
         return len(self.chunks)
 
@@ -65,13 +71,15 @@ class ContextIQEngine:
         self.vector_store.index_chunks(self.chunks)
 
         self.evaluator = AdaptiveConfidenceEvaluator(self.index)
-        self.graph = ContextIQStateGraph(self.index, self.evaluator, self.extractor)
+        self.graph = ContextIQStateGraph(
+            self.index, self.evaluator, self.extractor, session_manager=self.session_manager
+        )
 
         return len(self.chunks)
 
-    def ask(self, question: str) -> ContextIQResponse:
-        """Processes an administrative question through the state graph."""
-        return self.graph.run(question)
+    def ask(self, question: str, session_id: Optional[str] = None) -> ContextIQResponse:
+        """Processes an administrative question through the state graph with session memory."""
+        return self.graph.run(question, session_id=session_id)
 
     def vector_search(self, query: str, top_k: int = 3, doc_id_filter: Optional[str] = None) -> List[VectorSearchResult]:
         """Direct vector similarity search against Qdrant collection."""
@@ -84,5 +92,6 @@ class ContextIQEngine:
             "chunk_count": len(self.chunks),
             "vocabulary_size": len(self.index.corpus_raw_vocab),
             "avg_chunk_length": round(self.index.avg_doc_len, 2),
+            "active_sessions": self.session_manager.active_session_count(),
             "vector_database": self.vector_store.get_collection_info(),
         }

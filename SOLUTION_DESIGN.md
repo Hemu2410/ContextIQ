@@ -243,10 +243,10 @@ sequenceDiagram
 1. **Vocabulary / Synonym Gaps**:
    * *Limitation*: If an admin asks *"Can I export to an Excel spreadsheet?"*, pure lexical search may struggle because "spreadsheet" $\ne$ "CSV".
    * *v2 Solution*: Integrate a hybrid retrieval layer combining BM25 with dense semantic vector embeddings (`sentence-transformers` / small on-device models) for conceptual matching.
-2. **Single-Shot Bounded Disambiguation (Query Clarification)**:
-   * *Limitation*: When an admin submits an ambiguous, multi-intent query (e.g., *"How do I reset?"*), both `D-01` (Password Reset) and `D-04` (Billing Payment Reset) score almost equally.
-   * *v2 Solution*: Trigger a **single-turn clarification prompt**: *"Are you referring to: (A) Resetting your account password, or (B) Updating your billing payment method?"*
-   * *Guardrail*: Strictly bounded to **maximum 1 clarification turn** to eliminate frustrating "20 questions" loops. If still ambiguous on the second turn, the system gracefully provides both doc links and offers support escalation.
+2. **Single-Shot Bounded Disambiguation & Short-Term Session Memory** *(Implemented in v1.1)*:
+   * *Capability*: When an admin submits an ambiguous or underspecified query (e.g., *"How do I reset?"*), ContextIQ identifies near-ties (delta <= 0.08) and triggers a **single-turn clarification prompt**: *"Did you mean: (A) Resetting Your Password [D-01], or (B) Understanding Billing Cycles [D-04]?"*
+   * *Short-Term Session Memory*: Tracks conversational state across turns via `session_id`. When the admin replies with *"A"*, *"1"*, or *"password"*, ContextIQ resolves the selection and serves the verified answer.
+   * *Guardrail*: Strictly bounded to **maximum 1 clarification turn** to eliminate conversational loops. Any second turn automatically resolves or resets.
 3. **Multi-Hop Reasoning**:
    * *Limitation*: Inquiries requiring facts combined across two separate articles (e.g., *"Can a Viewer export CSV reports?"* combining `D-02` role permissions with `D-03` export tools).
    * *v2 Solution*: Passage multi-hop linking where retrieved passages from both articles are cross-referenced before answering.

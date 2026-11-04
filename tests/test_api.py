@@ -101,6 +101,29 @@ class TestContextIQAPI(unittest.TestCase):
             self.assertEqual(r["doc_id"], "D-01")
 
     # ------------------------------------------------------------------
+    # Disambiguation & Session Memory (Multi-Turn)
+    # ------------------------------------------------------------------
+    def test_ask_disambiguation_multi_turn(self):
+        """POST /api/v1/ask multi-turn disambiguation flow with session memory."""
+        # Turn 1: Ambiguous query triggers DISAMBIGUATION with options
+        resp1 = self.client.post("/api/v1/ask", json={"question": "How do I reset?"})
+        self.assertEqual(resp1.status_code, 200)
+        data1 = resp1.json()
+        self.assertEqual(data1["status"], "DISAMBIGUATION")
+        self.assertIsNotNone(data1.get("session_id"))
+        self.assertIsNotNone(data1.get("options"))
+        self.assertEqual(len(data1["options"]), 2)
+        sid = data1["session_id"]
+
+        # Turn 2: Follow-up selection "A" using the same session_id resolves to D-01
+        resp2 = self.client.post("/api/v1/ask", json={"question": "A", "session_id": sid})
+        self.assertEqual(resp2.status_code, 200)
+        data2 = resp2.json()
+        self.assertEqual(data2["status"], "ANSWERED")
+        self.assertIsNotNone(data2.get("citation"))
+        self.assertEqual(data2["citation"]["doc_id"], "D-01")
+
+    # ------------------------------------------------------------------
     # Ingest
     # ------------------------------------------------------------------
     def test_ingest_new_document(self):

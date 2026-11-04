@@ -25,20 +25,26 @@ DEFAULT_QUESTIONS_PATH = os.path.join("starter_kit", "data", "example_questions.
 
 def format_response_cli(resp) -> str:
     """Formats response payload cleanly for console output."""
+    tier = resp.confidence_tier.value if hasattr(resp.confidence_tier, "value") else str(resp.confidence_tier)
+    status_str = resp.status.value if hasattr(resp.status, "value") else str(resp.status)
     lines = []
     lines.append("=" * 72)
     lines.append(f"QUESTION: {resp.question}")
     lines.append("-" * 72)
-    if resp.status == "ANSWERED" and resp.citation:
+    if status_str == "ANSWERED" and resp.citation:
         lines.append(f"STATUS:        [OK] ANSWERED")
-        lines.append(f"CONFIDENCE:    {resp.confidence_tier} (Score: {resp.confidence_score:.3f} >= Threshold: {resp.effective_threshold:.3f})")
+        lines.append(f"CONFIDENCE:    {tier} (Score: {resp.confidence_score:.3f} >= Threshold: {resp.effective_threshold:.3f})")
         lines.append(f"SOURCE DOC:    [{resp.citation.doc_id}] {resp.citation.title}")
         if resp.citation.navigation_path:
             lines.append(f"UI NAVIGATION: {resp.citation.navigation_path}")
         lines.append(f"DIRECT ANSWER:\n  \"{resp.answer}\"")
+    elif status_str == "DISAMBIGUATION":
+        lines.append(f"STATUS:        [CLARIFICATION REQUIRED] MULTI-INTENT DETECTED")
+        lines.append(f"CONFIDENCE:    {tier} (Ambiguous topic match)")
+        lines.append(f"ASSISTANT:\n{resp.answer}")
     else:
         lines.append(f"STATUS:        [REFUSAL] I DON'T KNOW")
-        lines.append(f"CONFIDENCE:    {resp.confidence_tier} (Score: {resp.confidence_score:.3f} < Threshold: {resp.effective_threshold:.3f})")
+        lines.append(f"CONFIDENCE:    {tier} (Score: {resp.confidence_score:.3f} < Threshold: {resp.effective_threshold:.3f})")
         if resp.rejection_reason:
             lines.append(f"REASON:        {resp.rejection_reason}")
         lines.append(f"RESPONSE:\n  {resp.answer}")
@@ -123,11 +129,13 @@ def run_evaluation(engine: ContextIQEngine, questions_path: str) -> None:
 
 
 def interactive_repl(engine: ContextIQEngine) -> None:
-    """Starts interactive terminal session for corporate administrators."""
+    """Starts interactive terminal session for corporate administrators with session memory."""
     stats = engine.get_stats()
+    session = engine.session_manager.get_or_create_session()
     print("\n" + "=" * 72)
     print(" Welcome to ContextIQ - Solstice Learning Admin Assistant")
     print(f" Status: Active ({stats['document_count']} documents, {stats['chunk_count']} chunks indexed)")
+    print(f" Session ID: {session.session_id}")
     print(" Commands:")
     print("   Type your question in plain English")
     print("   '/stats'   - View index statistics")
@@ -145,14 +153,14 @@ def interactive_repl(engine: ContextIQEngine) -> None:
                 break
             elif q.lower() == "/stats":
                 curr = engine.get_stats()
-                print(f"[Stats] Docs: {curr['document_count']}, Chunks: {curr['chunk_count']}, Vocab: {curr['vocabulary_size']} words")
+                print(f"[Stats] Docs: {curr['document_count']}, Chunks: {curr['chunk_count']}, Vocab: {curr['vocabulary_size']} words, Sessions: {curr['active_sessions']}")
                 continue
             elif q.lower() == "/reload":
                 reloaded = engine.load_docs(DEFAULT_DOCS_PATH)
                 print(f"[System] Successfully reloaded {reloaded} chunks from {DEFAULT_DOCS_PATH}!")
                 continue
 
-            resp = engine.ask(q)
+            resp = engine.ask(q, session_id=session.session_id)
             print(format_response_cli(resp))
         except (KeyboardInterrupt, EOFError):
             print("\nSession ended.")

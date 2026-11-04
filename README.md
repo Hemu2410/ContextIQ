@@ -30,7 +30,8 @@ ContextIQ ships as both a CLI tool and a **FastAPI REST microservice** backed by
 | **REST API Microservice** | [`api.py`](./api.py) | FastAPI REST API with 6 endpoints, CORS, Swagger UI (`/docs`), and Pydantic request validation. |
 | **CLI & Evaluation Runner** | [`main.py`](./main.py) | Terminal entrypoint: interactive REPL, single question query, benchmark evaluation, and `--serve` API mode. |
 | **Docker Containerization** | [`Dockerfile`](./Dockerfile), [`docker-compose.yml`](./docker-compose.yml) | Multi-stage Docker build with Qdrant sidecar, ready for AWS ECS deployment. |
-| **Automated Test Suite** | [`tests/`](./tests/) | 11 engine unit tests + 11 API integration tests (100% passing). |
+| **Short-Term Session Memory** | [`contextiq/session.py`](./contextiq/session.py) | In-memory session manager with TTL expiration; maintains state across turns for single-shot HITL. |
+| **Automated Test Suite** | [`tests/`](./tests/) | 25 automated tests: 14 engine unit tests + 11 API integration tests (100% passing). |
 
 ---
 
@@ -50,7 +51,7 @@ python main.py --evaluate
 ```
 
 ### C. Run Automated Unit & Regression Tests
-Executes the full test suite (engine + API) in under 1 second:
+Executes the full 25-test suite (engine + API) in under 0.2 seconds:
 ```bash
 python -m unittest discover tests
 ```
